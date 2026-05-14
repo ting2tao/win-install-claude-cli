@@ -104,14 +104,22 @@ function Test-FileSignature {
     param([string]$FilePath, [string]$Label)
     Write-Info "验证 $Label 数字签名..."
     $sig = Get-AuthenticodeSignature $FilePath
-    if ($sig.Status -eq "Valid") {
-        $signer = $sig.SignerCertificate.Subject
-        Write-OK "$Label 签名有效：$signer"
-        return $true
-    } else {
-        Write-Fail "$Label 签名验证失败：$($sig.Status)"
-        Write-Info "文件可能被篡改或来源不可信"
-        return $false
+    switch ($sig.Status) {
+        "Valid" {
+            $signer = $sig.SignerCertificate.Subject
+            Write-OK "$Label 签名有效：$signer"
+            return $true
+        }
+        "NotSigned" {
+            Write-Warn "$Label 未签名（开源软件常见）"
+            $confirm = Read-Host "    是否继续安装未签名文件？(Y/N)"
+            return ($confirm -in @("Y", "y", "yes", "是"))
+        }
+        default {
+            Write-Fail "$Label 签名验证失败：$($sig.Status)"
+            Write-Info "文件可能被篡改，请从官方渠道重新下载"
+            return $false
+        }
     }
 }
 
