@@ -473,13 +473,17 @@ if ($msiFile -and (Test-Path $msiFile)) {
         if ($ccExe) {
             $desktop = [Environment]::GetFolderPath("Desktop")
             $lnkPath = "$desktop\CC-Switch.lnk"
-            $shell = New-Object -ComObject WScript.Shell
-            $shortcut = $shell.CreateShortcut($lnkPath)
-            $shortcut.TargetPath = $ccExe
-            $shortcut.WorkingDirectory = Split-Path $ccExe
-            $shortcut.IconLocation = "$ccExe,0"
-            $shortcut.Save()
-            Write-OK "桌面快捷方式已创建：$lnkPath"
+            if (Test-Path $lnkPath) {
+                Write-OK "桌面快捷方式已存在：$lnkPath"
+            } else {
+                $shell = New-Object -ComObject WScript.Shell
+                $shortcut = $shell.CreateShortcut($lnkPath)
+                $shortcut.TargetPath = $ccExe
+                $shortcut.WorkingDirectory = Split-Path $ccExe
+                $shortcut.IconLocation = "$ccExe,0"
+                $shortcut.Save()
+                Write-OK "桌面快捷方式已创建：$lnkPath"
+            }
         } else {
             Write-Warn "未找到 CC-Switch.exe，桌面快捷方式未创建"
             Write-Info "请手动查找安装目录并创建快捷方式"
