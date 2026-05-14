@@ -100,6 +100,41 @@ function Get-CommandText {
     }
 }
 
+function Test-FileSignature {
+    param([string]$FilePath, [string]$Label)
+    Write-Info "验证 $Label 数字签名..."
+    $sig = Get-AuthenticodeSignature $FilePath
+    if ($sig.Status -eq "Valid") {
+        $signer = $sig.SignerCertificate.Subject
+        Write-OK "$Label 签名有效：$signer"
+        return $true
+    } else {
+        Write-Fail "$Label 签名验证失败：$($sig.Status)"
+        Write-Info "文件可能被篡改或来源不可信"
+        return $false
+    }
+}
+
+function Confirm-Installation {
+    Write-Host ""
+    Write-Host "================================================" -ForegroundColor Yellow
+    Write-Host "   即将安装以下内容（需要管理员权限）"
+    Write-Host "================================================" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  [1] Node.js LTS          来源：npmmirror.com（国内镜像）"
+    Write-Host "  [2] Claude Code CLI       来源：registry.npmmirror.com（npm 镜像）"
+    Write-Host "  [3] CC-Switch $CcSwitchVersion    来源：本地 MSI 或 GitHub"
+    Write-Host ""
+    Write-Host "  以上操作将修改系统 PATH 和 npm 全局配置。" -ForegroundColor DarkGray
+    Write-Host ""
+    $confirm = Read-Host "是否继续安装？(Y/N)"
+    if ($confirm -notin @("Y", "y", "yes", "是")) {
+        Write-Info "用户取消，退出安装"
+        exit 0
+    }
+    Write-Host ""
+}
+
 function Get-NodeVersionInfo {
     $result = Get-CommandText "node" @("--version")
     if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Text)) {
@@ -176,6 +211,29 @@ function Install-NodeLts {
         exit 1
     }
 
+    # SHA256 哈希校验
+    Write-Info "校验 Node.js 下载文件完整性..."
+    try {
+        $shasums = Invoke-WebRequest -Uri "$NodeMirror/$Version/SHASUMS256.txt" -UseBasicParsing -TimeoutSec 30
+        $expectedHash = ($shasums.Content -split "`n" | Where-Object { $_ -match $fileName } | ForEach-Object { ($_ -split "\s+")[0] }).Trim()
+        $actualHash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower()
+        if ($expectedHash -and $actualHash -eq $expectedHash.ToLower()) {
+            Write-OK "SHA256 校验通过"
+        } else {
+            Write-Fail "SHA256 校验失败！文件可能被篡改"
+            Write-Info "期望：$expectedHash"
+            Write-Info "实际：$actualHash"
+            exit 1
+        }
+    } catch {
+        Write-Warn "SHA256 校验跳过（无法获取校验文件）：$_"
+    }
+
+    if (-not (Test-FileSignature $installer "Node.js MSI")) {
+        Write-Info "如需跳过验证，可手动运行：$installer"
+        exit 1
+    }
+
     Write-Info "静默安装 Node.js，请稍等..."
     $process = Start-Process -FilePath "msiexec.exe" -ArgumentList @("/i", "`"$installer`"", "/qn", "/norestart") -Wait -PassThru
     if ($process.ExitCode -ne 0) {
@@ -234,7 +292,7 @@ function Install-NpmPackage {
 
     for ($i = 1; $i -le 2; $i++) {
         Write-Info "安装 $Label（第 $i 次尝试）..."
-        $npmArgs = @("install", "-g") + $ExtraArgs + @($Package, "--registry", $NpmRegistry)
+        $npmArgs = @("install", "-g") + $ExtraArgs + @($Package, "--registry", $NpmRegistry, "--integrity")
         $output = npm @npmArgs 2>&1
         $exitCode = $LASTEXITCODE
 
@@ -263,8 +321,10 @@ function Install-NpmPackage {
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host "   Claude Code CLI + ccswitch 安装脚本"
+Write-Host "   Claude Code CLI + CC-Switch 安装脚本"
 Write-Host "================================================" -ForegroundColor Cyan
+
+Confirm-Installation
 
 # ── STEP 1: PowerShell 版本检查 ──────────────────────────
 Write-Step "1/7" "检查 PowerShell 版本..."
@@ -364,6 +424,13 @@ if (Test-Path $localMsi) {
     } catch {
         Write-Fail "CC-Switch 下载失败：$_"
         Write-Info "可手动下载：$CcSwitchMsiUrl"
+        $msiFile = $null
+    }
+}
+
+if ($msiFile -and (Test-Path $msiFile)) {
+    if (-not (Test-FileSignature $msiFile "CC-Switch MSI")) {
+        Write-Info "如需跳过验证，可手动运行：$msiFile"
         $msiFile = $null
     }
 }
