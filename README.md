@@ -110,3 +110,14 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```powershell
 npm install -g --include=optional @anthropic-ai/claude-code --registry https://registry.npmmirror.com
 ```
+
+### 双击 SETUP.bat 窗口闪退
+
+常见原因及解决方法：
+
+| 原因 | 解决方法 |
+|------|----------|
+| 路径包含空格或中文 | 将文件放在 `C:\tools\` 等简单路径下 |
+| PowerShell 被禁用 | 管理员 CMD 运行 `powershell Set-ExecutionPolicy RemoteSigned` |
+| 非管理员运行 | 右键 SETUP.bat -> 以管理员身份运行 |
+| Windows Defender 拦截 | 将脚本所在目录加入排除项 |
