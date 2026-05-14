@@ -6,14 +6,14 @@ Windows 环境下一键安装 Claude Code CLI + CC-Switch 桌面客户端。
 
 | 文件 | 说明 |
 |------|------|
-| `install-claude.bat` | 双击运行的启动脚本 |
+| `安装Claude.bat` | 双击运行的启动脚本 |
 | `install-claude.ps1` | PowerShell 安装主脚本 |
 | `CC-Switch-v3.14.1-Windows.msi` | CC-Switch 桌面客户端安装包 |
 
 ## 安装步骤
 
 1. 将 3 个文件放在同一个文件夹
-2. 右键 `install-claude.bat` -> **以管理员身份运行**
+2. 右键 `安装Claude.bat` -> **以管理员身份运行**
 3. 等待安装完成
 
 ## 安装内容
