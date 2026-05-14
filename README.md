@@ -61,10 +61,31 @@ $env:ANTHROPIC_BASE_URL = "https://你的中转地址"
 
 > 注意：`ANTHROPIC_BASE_URL` 是否带 `/v1` 取决于你的中转服务商。
 
-## 测试连接
+## 启动 Claude Code
 
-```powershell
+安装并配置好 API 后，可以通过以下方式启动：
+
+1. 按 `Win + R` 打开运行窗口
+2. 输入 `cmd`，回车打开命令提示符
+3. 输入 `claude`，回车进入交互模式
+
+```cmd
+claude
+```
+
+进入交互模式后可以直接与 Claude 对话，输入问题后回车即可。
+
+其他常用命令：
+
+```cmd
+# 单次提问（不进入交互模式）
 claude -p "你好"
+
+# 查看版本
+claude --version
+
+# 查看帮助
+claude --help
 ```
 
 ## 常见问题
