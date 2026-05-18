@@ -299,16 +299,19 @@ function Install-NpmPackage {
     )
 
     $extraStr = if ($ExtraArgs.Count -gt 0) { $ExtraArgs -join " " } else { "" }
-    $cmd = "npm install -g $extraStr `"$Package`" --registry $NpmRegistry"
+    $npmCmd = "npm install -g $extraStr $Package --registry $NpmRegistry"
+    $tmpCmdFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "claude_install_$([System.IO.Path]::GetRandomFileName()).cmd")
 
     for ($i = 1; $i -le 2; $i++) {
         Write-Info "安装 $Label（第 $i 次尝试）..."
-        Write-Info "命令：$cmd"
-        $output = cmd /c $cmd 2>&1
+        Write-Info "命令：$npmCmd"
+        Set-Content -Path $tmpCmdFile -Value "@echo off`r`n$npmCmd" -Encoding ASCII
+        $output = & cmd /c $tmpCmdFile 2>&1
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -eq 0) {
             Write-OK "$Label 安装命令执行成功"
+            Remove-Item -Path $tmpCmdFile -Force -ErrorAction SilentlyContinue
             return $true
         }
 
@@ -327,6 +330,7 @@ function Install-NpmPackage {
         }
     }
 
+    Remove-Item -Path $tmpCmdFile -Force -ErrorAction SilentlyContinue
     return $false
 }
 
