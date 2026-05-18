@@ -300,22 +300,39 @@ function Install-NpmPackage {
 
     $extraStr = if ($ExtraArgs.Count -gt 0) { $ExtraArgs -join " " } else { "" }
     $npmCmd = "npm install -g $extraStr $Package"
+
+    # 三级降级策略：直接安装 → 临时目录加 package.json → cd $HOME
+    $strategies = @(
+        @{ Label = "直接安装";               Cmd = $npmCmd },
+        @{ Label = "临时目录 + package.json"; Cmd = "cd /d %TEMP%\claude_npm`r`n$npmCmd" },
+        @{ Label = "cd 用户目录";             Cmd = "cd /d %USERPROFILE%`r`n$npmCmd" }
+    )
+
+    $tmpDir = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "claude_npm")
     $tmpCmdFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "claude_install_$([System.IO.Path]::GetRandomFileName()).cmd")
 
-    for ($i = 1; $i -le 2; $i++) {
-        Write-Info "安装 $Label（第 $i 次尝试）..."
+    for ($s = 0; $s -lt $strategies.Count; $s++) {
+        $st = $strategies[$s]
+
+        if ($s -eq 1) {
+            New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+            Set-Content -Path (Join-Path $tmpDir "package.json") -Value "{}" -Encoding ASCII
+        }
+
+        Write-Info "安装 $Label（策略 $($s+1): $($st.Label)）..."
         Write-Info "命令：$npmCmd"
-        Set-Content -Path $tmpCmdFile -Value "@echo off`r`ncd /d %USERPROFILE%`r`n$npmCmd" -Encoding ASCII
+        Set-Content -Path $tmpCmdFile -Value "@echo off`r`n$($st.Cmd)" -Encoding ASCII
         $output = & cmd /c $tmpCmdFile 2>&1
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -eq 0) {
             Write-OK "$Label 安装命令执行成功"
             Remove-Item -Path $tmpCmdFile -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
             return $true
         }
 
-        Write-Warn "$Label 安装失败，npm 退出码：$exitCode"
+        Write-Warn "$Label 安装失败（$($st.Label)），npm 退出码：$exitCode"
         $lines = @($output | ForEach-Object { $_.ToString() })
         $tail = $lines | Select-Object -Last 20
         if ($tail.Count -gt 0) {
@@ -324,13 +341,14 @@ function Install-NpmPackage {
             Write-Host "    ------------------------" -ForegroundColor DarkYellow
         }
 
-        if ($i -lt 2) {
-            Write-Warn "5 秒后重试..."
+        if ($s -lt $strategies.Count - 1) {
+            Write-Warn "5 秒后尝试下一策略..."
             Start-Sleep 5
         }
     }
 
     Remove-Item -Path $tmpCmdFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
     return $false
 }
 
