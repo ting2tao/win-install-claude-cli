@@ -305,7 +305,7 @@ function Install-NpmPackage {
     for ($i = 1; $i -le 2; $i++) {
         Write-Info "安装 $Label（第 $i 次尝试）..."
         Write-Info "命令：$npmCmd"
-        Set-Content -Path $tmpCmdFile -Value "@echo off`r`n$npmCmd" -Encoding ASCII
+        Set-Content -Path $tmpCmdFile -Value "@echo off`r`ncd /d %USERPROFILE%`r`n$npmCmd" -Encoding ASCII
         $output = & cmd /c $tmpCmdFile 2>&1
         $exitCode = $LASTEXITCODE
 
