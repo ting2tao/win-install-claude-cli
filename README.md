@@ -111,6 +111,10 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 npm install -g --include=optional @anthropic-ai/claude-code --registry https://registry.npmmirror.com
 ```
 
+### SETUP 没有后缀
+
+Windows 默认隐藏已知文件类型的扩展名，`SETUP.bat` 显示为 `SETUP` 是正常的，双击即可运行。如需显示后缀：文件资源管理器 -> 查看 -> 显示 -> 文件扩展名。
+
 ### 双击 SETUP.bat 窗口闪退
 
 常见原因及解决方法：
@@ -121,3 +125,7 @@ npm install -g --include=optional @anthropic-ai/claude-code --registry https://r
 | PowerShell 被禁用 | 管理员 CMD 运行 `powershell Set-ExecutionPolicy RemoteSigned` |
 | 非管理员运行 | 右键 SETUP.bat -> 以管理员身份运行 |
 | Windows Defender 拦截 | 将脚本所在目录加入排除项 |
+
+### Volta 用户 npm 安装报错
+
+使用 Volta 管理 Node.js 的用户，如果遇到 npm 参数解析错误，请更新到最新版脚本（已用 `cmd /c` 绕过 PowerShell 5.1 兼容问题）。
