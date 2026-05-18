@@ -517,9 +517,11 @@ Write-Host '    [Environment]::SetEnvironmentVariable("ANTHROPIC_BASE_URL", "htt
 Write-Host ""
 Write-Host "  注意：ANTHROPIC_BASE_URL 是否带 /v1 取决于你的中转服务商。" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  用 ccswitch 管理多个供应商：" -ForegroundColor Yellow
-Write-Host "    ccswitch add"
-Write-Host "    ccswitch use <名称>"
+Write-Host "  用 CC-Switch 桌面版管理多个供应商：" -ForegroundColor Yellow
+Write-Host "    桌面双击 CC-Switch 快捷方式即可打开"
+Write-Host ""
+Write-Host "  启动 Claude Code：" -ForegroundColor Yellow
+Write-Host "    Win+R -> 输入 cmd -> 回车 -> 输入 claude"
 Write-Host ""
 Write-Host "  测试连接：" -ForegroundColor Yellow
 Write-Host '    claude -p "你好"'
