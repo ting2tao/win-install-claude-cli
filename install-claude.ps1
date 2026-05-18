@@ -299,7 +299,7 @@ function Install-NpmPackage {
     )
 
     $extraStr = if ($ExtraArgs.Count -gt 0) { $ExtraArgs -join " " } else { "" }
-    $npmCmd = "npm install -g $extraStr $Package --registry $NpmRegistry"
+    $npmCmd = "npm install -g $extraStr $Package"
     $tmpCmdFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "claude_install_$([System.IO.Path]::GetRandomFileName()).cmd")
 
     for ($i = 1; $i -le 2; $i++) {
@@ -408,7 +408,7 @@ Write-Step "5/7" "安装 Claude Code CLI..."
 $ok = Install-NpmPackage "@anthropic-ai/claude-code" "Claude Code" @("--include=optional")
 if (-not $ok) {
     Write-Fail "Claude Code 安装失败，请检查网络、npm 权限或 npmmirror 同步状态"
-    Write-Info "可手动执行：npm install -g --include=optional @anthropic-ai/claude-code --registry $NpmRegistry"
+    Write-Info "可手动执行：npm install -g --include=optional @anthropic-ai/claude-code"
     exit 1
 }
 
