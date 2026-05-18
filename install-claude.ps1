@@ -298,10 +298,13 @@ function Install-NpmPackage {
         [string[]]$ExtraArgs = @()
     )
 
+    $extraStr = if ($ExtraArgs.Count -gt 0) { $ExtraArgs -join " " } else { "" }
+    $cmd = "npm install -g $extraStr $Package --registry $NpmRegistry --integrity"
+
     for ($i = 1; $i -le 2; $i++) {
         Write-Info "安装 $Label（第 $i 次尝试）..."
-        $npmArgs = @("install", "-g") + $ExtraArgs + @($Package, "--registry", $NpmRegistry, "--integrity")
-        $output = npm @npmArgs 2>&1
+        Write-Info "命令：$cmd"
+        $output = cmd /c $cmd 2>&1
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -eq 0) {
