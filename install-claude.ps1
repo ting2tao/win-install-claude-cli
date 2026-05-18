@@ -299,7 +299,7 @@ function Install-NpmPackage {
     )
 
     $extraStr = if ($ExtraArgs.Count -gt 0) { $ExtraArgs -join " " } else { "" }
-    $cmd = "npm install -g $extraStr $Package --registry $NpmRegistry --integrity"
+    $cmd = "npm install -g $extraStr `"$Package`" --registry $NpmRegistry"
 
     for ($i = 1; $i -le 2; $i++) {
         Write-Info "安装 $Label（第 $i 次尝试）..."

@@ -37,7 +37,7 @@ Windows 环境下一键安装 Claude Code CLI + CC-Switch 桌面客户端。
 | 安装前确认 | 脚本启动后显示将要安装的内容，用户确认后才继续 |
 | MSI 数字签名验证 | Node.js 和 CC-Switch 安装前验证 Authenticode 签名 |
 | SHA256 哈希校验 | Node.js 下载后与官方 SHASUMS256 比对，防止文件被篡改 |
-| npm 完整性校验 | npm 安装时使用 `--integrity` 校验包哈希 |
+| npm registry 锁定 | 强制使用 npmmirror 镜像，避免被劫持到不受信任的源 |
 
 ## 网络要求
 
