@@ -1,5 +1,5 @@
 @echo off
-cd /d %~dp0
+cd /d "%~dp0"
 echo Starting install...
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-claude.ps1"

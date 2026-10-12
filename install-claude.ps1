@@ -19,7 +19,7 @@ $ErrorActionPreference    = "Continue"
 
 $NpmRegistry      = "https://registry.npmmirror.com"
 $NodeMirror       = "https://npmmirror.com/mirrors/node"
-$CcSwitchVersion  = "v3.14.1"
+$CcSwitchVersion  = "v4.0.9"
 $CcSwitchMsiFile  = "CC-Switch-$CcSwitchVersion-Windows.msi"
 $CcSwitchMsiUrl   = "https://github.com/farion1231/cc-switch/releases/download/$CcSwitchVersion/$CcSwitchMsiFile"
 
@@ -255,7 +255,7 @@ function Install-NodeLts {
 
 function Ensure-Node {
     $node = Get-NodeVersionInfo
-    if ($null -ne $node -and $node.Major -ge 18) {
+    if ($null -ne $node -and $node.Major -ge 22) {
         Write-OK "已检测到 Node.js $($node.Raw)"
         return
     }
@@ -271,8 +271,8 @@ function Ensure-Node {
     Refresh-Path
 
     $nodeAfter = Get-NodeVersionInfo
-    if ($null -eq $nodeAfter -or $nodeAfter.Major -lt 18) {
-        Write-Fail "安装后当前 PowerShell 仍无法识别 Node.js 18+"
+    if ($null -eq $nodeAfter -or $nodeAfter.Major -lt 22) {
+        Write-Fail "安装后当前 PowerShell 仍无法识别 Node.js 22+"
         Write-Info "请关闭并重新打开管理员 PowerShell 后，再运行：node -v"
         exit 1
     }
@@ -423,10 +423,10 @@ Ensure-NpmGlobalPath
 
 # ── STEP 5: 安装 Claude Code CLI ─────────────────────────
 Write-Step "5/7" "安装 Claude Code CLI..."
-$ok = Install-NpmPackage "@anthropic-ai/claude-code" "Claude Code" @("--include=optional")
+$ok = Install-NpmPackage "@anthropic-ai/claude-code@latest" "Claude Code" @("--include=optional")
 if (-not $ok) {
     Write-Fail "Claude Code 安装失败，请检查网络、npm 权限或 npmmirror 同步状态"
-    Write-Info "可手动执行：npm install -g --include=optional @anthropic-ai/claude-code"
+    Write-Info "可手动执行：npm install -g --include=optional @anthropic-ai/claude-code@latest"
     exit 1
 }
 

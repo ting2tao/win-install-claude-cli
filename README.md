@@ -1,6 +1,6 @@
 # Claude Code CLI 一键安装脚本
 
-Windows 环境下一键安装 Claude Code CLI + CC-Switch 桌面客户端。
+Windows 环境下一键安装最新版 Claude Code CLI + CC-Switch 4.0.9 桌面客户端。
 
 ## 包含文件
 
@@ -8,7 +8,7 @@ Windows 环境下一键安装 Claude Code CLI + CC-Switch 桌面客户端。
 |------|------|
 | `SETUP.bat` | 双击运行的启动脚本 |
 | `install-claude.ps1` | PowerShell 安装主脚本 |
-| `CC-Switch-v3.14.1-Windows.msi` | CC-Switch 桌面客户端安装包 |
+| `CC-Switch-v4.0.9-Windows.msi` | CC-Switch 桌面客户端安装包 |
 
 ## 安装步骤
 
@@ -24,7 +24,7 @@ Windows 环境下一键安装 Claude Code CLI + CC-Switch 桌面客户端。
 |------|------|
 | 1/7 | 检查 PowerShell 版本（需要 5.1+） |
 | 2/7 | 检查管理员权限 |
-| 3/7 | 自动安装 Node.js LTS（如果没有或版本过低） |
+| 3/7 | 自动安装 Node.js LTS（如果没有或低于 22） |
 | 4/7 | 配置 npm 镜像源（npmmirror） |
 | 5/7 | 安装 Claude Code CLI |
 | 6/7 | 安装 CC-Switch 桌面客户端 + 创建桌面快捷方式 |
@@ -108,7 +108,7 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 手动执行：
 
 ```powershell
-npm install -g --include=optional @anthropic-ai/claude-code --registry https://registry.npmmirror.com
+npm install -g --include=optional @anthropic-ai/claude-code@latest --registry https://registry.npmmirror.com
 ```
 
 ### SETUP 没有后缀
