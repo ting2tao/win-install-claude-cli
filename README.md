@@ -1,6 +1,6 @@
-# Claude Code CLI 一键安装脚本
+# win-install-claude-cli
 
-Windows 环境下一键安装最新版 Claude Code CLI + CC-Switch 4.0.9 桌面客户端。
+在 Windows 上一键安装 Claude Code CLI、Claude Desktop 和 CC-Switch。重复运行时会跳过已检测到的应用。
 
 ## 包含文件
 
@@ -18,17 +18,18 @@ Windows 环境下一键安装最新版 Claude Code CLI + CC-Switch 4.0.9 桌面�
 
 ## 安装内容
 
-脚本自动完成以下 7 个步骤：
+脚本自动完成以下 8 个步骤：
 
 | 步骤 | 内容 |
 |------|------|
-| 1/7 | 检查 PowerShell 版本（需要 5.1+） |
-| 2/7 | 检查管理员权限 |
-| 3/7 | 自动安装 Node.js LTS（如果没有或低于 22） |
-| 4/7 | 配置 npm 镜像源（npmmirror） |
-| 5/7 | 安装 Claude Code CLI |
-| 6/7 | 安装 CC-Switch 桌面客户端 + 创建桌面快捷方式 |
-| 7/7 | 显示安装结果与下一步配置说明 |
+| 1/8 | 检查 PowerShell 版本（需要 5.1+） |
+| 2/8 | 检查管理员权限 |
+| 3/8 | 缺少 Node.js 时安装 LTS，低于 22 时升级 |
+| 4/8 | 配置 npm 镜像源（npmmirror） |
+| 5/8 | 检测 Claude Code CLI，缺少时通过 npm 安装最新版 |
+| 6/8 | 检测 Claude Desktop，缺少时通过 WinGet 安装 |
+| 7/8 | 检测 CC-Switch，缺少时安装 4.0.9 并创建桌面快捷方式 |
+| 8/8 | 显示安装结果与下一步配置说明 |
 
 ## 安全措施
 
@@ -41,13 +42,13 @@ Windows 环境下一键安装最新版 Claude Code CLI + CC-Switch 4.0.9 桌面�
 
 ## 网络要求
 
-- 国内网络可直接使用，无需代理
 - Node.js 和 npm 通过 npmmirror 国内镜像下载
+- Claude Desktop 需要 Windows 的 [App Installer（WinGet）](https://learn.microsoft.com/windows/package-manager/winget/#install-winget)，并需要访问 WinGet 源及 Anthropic 的下载服务
 - CC-Switch 优先使用本地 MSI，未找到时从 GitHub 下载
 
 ## 安装后配置
 
-安装完成后需要配置 API 密钥：
+在 Windows 开始菜单打开 **Claude**，登录后即可使用桌面版。使用 API 方式运行 **Claude Code CLI** 时，按需配置 API 密钥和服务地址：
 
 ```powershell
 # 临时配置（当前会话有效）
@@ -110,6 +111,10 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```powershell
 npm install -g --include=optional @anthropic-ai/claude-code@latest --registry https://registry.npmmirror.com
 ```
+
+### Claude Desktop 安装失败
+
+可以在 Microsoft Store 安装或更新 **应用安装程序（App Installer）** 后重试，也可以手动下载并安装。 [Claude 官方下载](https://claude.com/download)
 
 ### SETUP 没有后缀
 

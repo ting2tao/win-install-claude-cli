@@ -1,7 +1,7 @@
 ﻿# ============================================================
-#  Claude Code CLI + ccswitch 一键安装脚本
+#  win-install-claude-cli 一键安装脚本
 #  适用：Windows 10/11 大陆网络环境 · PowerShell 5.1+
-#  功能：自动安装 Node.js LTS、配置 npm 镜像、安装 Claude Code CLI
+#  功能：安装 Claude Code、Claude Desktop 和 CC-Switch
 #  使用方法：
 #    1. 右键 PowerShell -> 以管理员身份运行
 #    2. Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
@@ -126,12 +126,13 @@ function Test-FileSignature {
 function Confirm-Installation {
     Write-Host ""
     Write-Host "================================================" -ForegroundColor Yellow
-    Write-Host "   即将安装以下内容（需要管理员权限）"
+    Write-Host "   即将检查并安装以下内容（建议以管理员身份运行）"
     Write-Host "================================================" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  [1] Node.js LTS          来源：npmmirror.com（国内镜像）"
     Write-Host "  [2] Claude Code CLI       来源：registry.npmmirror.com（npm 镜像）"
-    Write-Host "  [3] CC-Switch $CcSwitchVersion    来源：本地 MSI 或 GitHub"
+    Write-Host "  [3] Claude Desktop        来源：WinGet（Anthropic.Claude）"
+    Write-Host "  [4] CC-Switch $CcSwitchVersion    来源：本地 MSI 或 GitHub"
     Write-Host ""
     Write-Host "  以上操作将修改系统 PATH 和 npm 全局配置。" -ForegroundColor DarkGray
     Write-Host ""
@@ -352,15 +353,196 @@ function Install-NpmPackage {
     return $false
 }
 
+function Ensure-ClaudeCode {
+    if (Get-Command claude -ErrorAction SilentlyContinue) {
+        $installed = Get-CommandText 'claude' @('--version')
+        if ($installed.ExitCode -eq 0 -and $installed.Text -match '\(Claude Code\)') {
+            Write-OK "已安装 Claude Code，跳过：$($installed.Text)"
+            return $true
+        }
+    }
+
+    if (-not (Install-NpmPackage '@anthropic-ai/claude-code@latest' 'Claude Code' @('--include=optional'))) {
+        Write-Fail 'Claude Code 安装失败，请检查网络、npm 权限或 npmmirror 同步状态'
+        Write-Info '可手动执行：npm install -g --include=optional @anthropic-ai/claude-code@latest'
+        return $false
+    }
+
+    Refresh-Path
+    Ensure-NpmGlobalPath
+    if (Get-Command claude -ErrorAction SilentlyContinue) {
+        $installed = Get-CommandText 'claude' @('--version')
+        if ($installed.ExitCode -eq 0 -and $installed.Text -match '\(Claude Code\)') {
+            Write-OK "Claude Code 安装成功：$($installed.Text)"
+            return $true
+        }
+    }
+    Write-Fail '安装后无法验证 Claude Code，请重新打开 PowerShell 后运行：claude --version'
+    return $false
+}
+
+function Get-RegisteredDesktopApps {
+    $uninstallKeys = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+    Get-ItemProperty -Path $uninstallKeys -ErrorAction SilentlyContinue
+}
+
+function Ensure-ClaudeDesktop {
+    if (Get-Command Get-AppxPackage -ErrorAction SilentlyContinue) {
+        $package = Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue |
+            Where-Object { $_.PackageFamilyName -eq 'Claude_pzs8sxrjxfjjc' }
+        if ($package) {
+            Write-OK '已安装 Claude Desktop，跳过'
+            return $true
+        }
+    }
+
+    $legacy = Get-RegisteredDesktopApps | Where-Object {
+        $_.PSChildName -eq 'AnthropicClaude' -or
+            ($_.DisplayName -in @('Claude', 'Claude Desktop') -and $_.Publisher -like 'Anthropic*')
+    } | Select-Object -First 1
+    if ($legacy) {
+        Write-OK '已安装 Claude Desktop，跳过'
+        return $true
+    }
+
+    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+        Write-Fail '找不到 WinGet，请安装或更新 Windows 的 App Installer 后重试'
+        Write-Info '也可从 https://claude.com/download 手动安装 Claude Desktop'
+        return $false
+    }
+
+    $packageArgs = @('--id', 'Anthropic.Claude', '--exact', '--source', 'winget',
+                     '--accept-source-agreements', '--disable-interactivity')
+    $listed = Get-CommandText 'winget.exe' (@('list') + $packageArgs)
+    if ($listed.ExitCode -eq 0) {
+        Write-OK '已安装 Claude Desktop，跳过'
+        return $true
+    }
+
+    # 0x8A150014 means WinGet found no installed package.
+    if ($listed.ExitCode -ne -1978335212) {
+        Write-Fail "无法通过 WinGet 检查 Claude Desktop（退出码 $($listed.ExitCode)）"
+        Write-Info $listed.Text
+        return $false
+    }
+
+    Write-Info '通过 WinGet 安装 Claude Desktop，请稍等...'
+    $result = Get-CommandText 'winget.exe' (@('install') + $packageArgs +
+        @('--no-upgrade', '--silent', '--accept-package-agreements'))
+    if ($result.ExitCode -eq 0) {
+        Write-OK 'Claude Desktop 安装完成'
+        return $true
+    }
+    # WinGet can detect an existing package again before invoking its installer.
+    if ($result.ExitCode -in @(0x8A150061, 0x8A15010D)) {
+        Write-OK '已安装 Claude Desktop，跳过'
+        return $true
+    }
+
+    Write-Fail "Claude Desktop 安装失败（退出码 $($result.ExitCode)）"
+    Write-Info $result.Text
+    Write-Info '可手动下载：https://claude.com/download'
+    return $false
+}
+
+function Find-CcSwitchExecutable {
+    param([switch]$SearchRecursively)
+
+    $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs", $env:LOCALAPPDATA) |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) }
+    foreach ($root in $roots) {
+        foreach ($relativePath in @('CC-Switch\CC-Switch.exe', 'CC Switch\CC-Switch.exe')) {
+            $candidate = Join-Path $root $relativePath
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+        }
+    }
+    if ($SearchRecursively -and $roots) {
+        $found = Get-ChildItem -LiteralPath $roots -Filter 'CC-Switch.exe' -File -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($found) { return $found.FullName }
+    }
+}
+
+function Ensure-CcSwitch {
+    param([string]$ScriptDir)
+
+    $registered = Get-RegisteredDesktopApps | Where-Object { $_.DisplayName -match '^CC[- ]?Switch$' } |
+        Select-Object -First 1
+    if ($registered -or (Find-CcSwitchExecutable)) {
+        Write-OK "已安装 CC-Switch，跳过"
+        return $true
+    }
+
+    $localMsi = Join-Path $ScriptDir $CcSwitchMsiFile
+    Write-Info "查找本地 MSI：$localMsi"
+    if (Test-Path -LiteralPath $localMsi -PathType Leaf) {
+        $msiFile = $localMsi
+        Write-OK "使用本地 MSI：$msiFile"
+    } else {
+        $msiFile = Join-Path $env:TEMP $CcSwitchMsiFile
+        Write-Info "本地未找到，开始下载：$CcSwitchMsiUrl"
+        try {
+            Invoke-WebRequest -Uri $CcSwitchMsiUrl -OutFile $msiFile -UseBasicParsing -TimeoutSec 300
+        } catch {
+            Write-Fail "CC-Switch 下载失败：$_"
+            Write-Info "可手动下载：$CcSwitchMsiUrl"
+            $msiFile = $null
+        }
+    }
+
+    if (-not $msiFile -or -not (Test-Path -LiteralPath $msiFile -PathType Leaf)) {
+        Write-Fail "CC-Switch 未安装"
+        return $false
+    }
+    if (-not (Test-FileSignature $msiFile "CC-Switch MSI")) {
+        Write-Info "可检查安装包：$msiFile"
+        return $false
+    }
+
+    Write-Info "静默安装 CC-Switch，请稍等..."
+    $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList @("/i", "`"$msiFile`"", "/qn", "/norestart") -Wait -PassThru
+    if (-not $proc -or $proc.ExitCode -notin @(0, 3010)) {
+        Write-Fail "CC-Switch MSI 安装失败，退出码：$($proc.ExitCode)"
+        Write-Info "可手动运行安装包：$msiFile"
+        return $false
+    }
+    if ($proc.ExitCode -eq 3010) { Write-Warn "请重启 Windows 以完成 CC-Switch 安装" }
+
+    Write-OK "CC-Switch 安装完成"
+    $ccExe = Find-CcSwitchExecutable -SearchRecursively
+    if ($ccExe) {
+        $desktop = [Environment]::GetFolderPath("Desktop")
+        $lnkPath = "$desktop\CC-Switch.lnk"
+        if (Test-Path $lnkPath) {
+            Write-OK "桌面快捷方式已存在：$lnkPath"
+        } else {
+            $shell = New-Object -ComObject WScript.Shell
+            $shortcut = $shell.CreateShortcut($lnkPath)
+            $shortcut.TargetPath = $ccExe
+            $shortcut.WorkingDirectory = Split-Path $ccExe
+            $shortcut.IconLocation = "$ccExe,0"
+            $shortcut.Save()
+            Write-OK "桌面快捷方式已创建：$lnkPath"
+        }
+    } else {
+        Write-Warn "未找到 CC-Switch.exe，桌面快捷方式未创建"
+    }
+    return $true
+}
+
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host "   Claude Code CLI + CC-Switch 安装脚本"
+Write-Host "   win-install-claude-cli 安装脚本"
 Write-Host "================================================" -ForegroundColor Cyan
 
 Confirm-Installation
 
 # ── STEP 1: PowerShell 版本检查 ──────────────────────────
-Write-Step "1/7" "检查 PowerShell 版本..."
+Write-Step "1/8" "检查 PowerShell 版本..."
 $psVer = $PSVersionTable.PSVersion.Major
 if ($psVer -lt 5) {
     Write-Fail "PowerShell 版本过低（当前 $psVer.x），需要 5.1 或以上"
@@ -370,7 +552,7 @@ if ($psVer -lt 5) {
 Write-OK "PowerShell $($PSVersionTable.PSVersion)"
 
 # ── STEP 2: 管理员权限检查 ───────────────────────────────
-Write-Step "2/7" "检查运行权限..."
+Write-Step "2/8" "检查运行权限..."
 if (Test-IsAdmin) {
     Write-OK "当前以管理员身份运行"
 } else {
@@ -381,7 +563,7 @@ if (Test-IsAdmin) {
 }
 
 # ── STEP 3: 自动安装 / 检查 Node.js ──────────────────────
-Write-Step "3/7" "检查并安装 Node.js LTS..."
+Write-Step "3/8" "检查并安装 Node.js LTS..."
 Ensure-Node
 Refresh-Path
 
@@ -400,7 +582,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($npmText)) {
 Write-OK "npm -v  => $npmText"
 
 # ── STEP 4: 配置 npm 镜像源 ──────────────────────────────
-Write-Step "4/7" "配置 npm npmmirror 镜像源..."
+Write-Step "4/8" "配置 npm npmmirror 镜像源..."
 npm config set registry $NpmRegistry
 npm config set fetch-retries 3
 npm config set fetch-timeout 120000
@@ -421,113 +603,31 @@ if ($omit -match "optional") {
 
 Ensure-NpmGlobalPath
 
-# ── STEP 5: 安装 Claude Code CLI ─────────────────────────
-Write-Step "5/7" "安装 Claude Code CLI..."
-$ok = Install-NpmPackage "@anthropic-ai/claude-code@latest" "Claude Code" @("--include=optional")
-if (-not $ok) {
-    Write-Fail "Claude Code 安装失败，请检查网络、npm 权限或 npmmirror 同步状态"
-    Write-Info "可手动执行：npm install -g --include=optional @anthropic-ai/claude-code@latest"
+# ── STEP 5: Claude Code CLI ──────────────────────────────
+Write-Step "5/8" "检查并安装 Claude Code CLI..."
+$claudeCodeReady = Ensure-ClaudeCode
+
+# ── STEP 6: Claude Desktop ───────────────────────────────
+Write-Step "6/8" "检查并安装 Claude Desktop..."
+$desktopReady = Ensure-ClaudeDesktop
+
+# ── STEP 7: CC-Switch ────────────────────────────────────
+Write-Step "7/8" "检查并安装 CC-Switch..."
+$ccSwitchReady = Ensure-CcSwitch $PSScriptRoot
+
+# ── STEP 8: 完成提示 ────────────────────────────────────
+Write-Step "8/8" "安装结果与下一步..."
+if (-not ($claudeCodeReady -and $desktopReady -and $ccSwitchReady)) {
+    Write-Fail "有组件未完成安装，请查看上方提示"
     exit 1
 }
-
-Refresh-Path
-Ensure-NpmGlobalPath
-$claudeVer = (claude --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($claudeVer)) {
-    Write-Fail "Claude Code 已安装，但当前 PowerShell 未识别 claude 命令"
-    Write-Info "请重启 PowerShell 后运行：claude --version"
-    exit 1
-}
-Write-OK "Claude Code 安装成功：$claudeVer"
-
-# ── STEP 6: 安装 CC-Switch 桌面版 + 快捷方式 ─────────────
-Write-Step "6/7" "安装 CC-Switch $CcSwitchVersion..."
-
-$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } elseif ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path } else { $PWD.Path }
-$localMsi  = Join-Path $scriptDir $CcSwitchMsiFile
-Write-Info "查找本地 MSI：$localMsi"
-if (Test-Path $localMsi) {
-    $msiFile = $localMsi
-    Write-OK "使用本地 MSI：$msiFile"
-} else {
-    $msiFile = Join-Path $env:TEMP $CcSwitchMsiFile
-    Write-Info "本地未找到，开始下载：$CcSwitchMsiUrl"
-    try {
-        Invoke-WebRequest -Uri $CcSwitchMsiUrl -OutFile $msiFile -UseBasicParsing -TimeoutSec 300
-    } catch {
-        Write-Fail "CC-Switch 下载失败：$_"
-        Write-Info "可手动下载：$CcSwitchMsiUrl"
-        $msiFile = $null
-    }
-}
-
-if ($msiFile -and (Test-Path $msiFile)) {
-    if (-not (Test-FileSignature $msiFile "CC-Switch MSI")) {
-        Write-Info "如需跳过验证，可手动运行：$msiFile"
-        $msiFile = $null
-    }
-}
-
-if ($msiFile -and (Test-Path $msiFile)) {
-    Write-Info "静默安装 CC-Switch，请稍等..."
-    $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList @("/i", "`"$msiFile`"", "/qn", "/norestart") -Wait -PassThru
-    if ($proc.ExitCode -ne 0) {
-        Write-Warn "CC-Switch MSI 安装失败，退出码：$($proc.ExitCode)"
-        Write-Info "可手动运行安装包：$msiFile"
-    } else {
-        Write-OK "CC-Switch 安装完成"
-        Refresh-Path
-
-        # 查找 CC-Switch.exe
-        $ccExe = $null
-        $searchDirs = @(
-            "$env:ProgramFiles\CC-Switch",
-            "${env:ProgramFiles(x86)}\CC-Switch",
-            "$env:LOCALAPPDATA\Programs\CC-Switch",
-            "$env:LOCALAPPDATA\CC-Switch"
-        )
-        foreach ($dir in $searchDirs) {
-            $candidate = Join-Path $dir "CC-Switch.exe"
-            if (Test-Path $candidate) { $ccExe = $candidate; break }
-        }
-        if (-not $ccExe) {
-            $found = Get-ChildItem -Path "$env:ProgramFiles", "${env:ProgramFiles(x86)}", "$env:LOCALAPPDATA\Programs" -Filter "CC-Switch.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($found) { $ccExe = $found.FullName }
-        }
-
-        if ($ccExe) {
-            $desktop = [Environment]::GetFolderPath("Desktop")
-            $lnkPath = "$desktop\CC-Switch.lnk"
-            if (Test-Path $lnkPath) {
-                Write-OK "桌面快捷方式已存在：$lnkPath"
-            } else {
-                $shell = New-Object -ComObject WScript.Shell
-                $shortcut = $shell.CreateShortcut($lnkPath)
-                $shortcut.TargetPath = $ccExe
-                $shortcut.WorkingDirectory = Split-Path $ccExe
-                $shortcut.IconLocation = "$ccExe,0"
-                $shortcut.Save()
-                Write-OK "桌面快捷方式已创建：$lnkPath"
-            }
-        } else {
-            Write-Warn "未找到 CC-Switch.exe，桌面快捷方式未创建"
-            Write-Info "请手动查找安装目录并创建快捷方式"
-        }
-    }
-} else {
-    Write-Warn "CC-Switch 未安装，不影响 Claude Code 使用"
-}
-
-# ── STEP 7: 完成提示 ────────────────────────────────────
-Write-Step "7/7" "安装结果与下一步..."
-Write-OK "node -v：$((node -v 2>&1 | Out-String).Trim())"
-Write-OK "npm -v ：$((npm -v 2>&1 | Out-String).Trim())"
-Write-OK "claude ：$((claude --version 2>&1 | Out-String).Trim())"
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
-Write-Host "   CLI 已安装，下一步：配置 API"
+Write-Host "   安装检查完成"
 Write-Host "================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "  从 Windows 开始菜单打开 Claude，登录后使用桌面版。"
 Write-Host ""
 Write-Host "  当前会话临时配置：" -ForegroundColor Yellow
 Write-Host '    $env:ANTHROPIC_API_KEY  = "your-api-key"'
